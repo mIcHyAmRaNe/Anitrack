@@ -10,6 +10,7 @@ from .theme import (
     surface_color,
     text_color,
     title_color,
+    window_stylesheet,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "title_color",
     "pill_bg",
     "pill_text",
+    "window_stylesheet",
 ]

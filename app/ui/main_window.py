@@ -16,7 +16,7 @@ from qfluentwidgets import (
 
 from ..config.app_config import AppConfig
 from ..models.anime import Anime, AnimeStatus
-from ..theme.theme import Flavor, init_theme
+from ..theme.theme import Flavor, init_theme, window_stylesheet
 from .pages.about_page import AboutPage
 from .pages.detail_page import DetailPage
 from .pages.home_page import HomePage
@@ -60,6 +60,8 @@ class MainWindow(FluentWindow):
         self.settingsInterface = SettingsPage(self)
         self.aboutInterface = AboutPage(self)
         self.initNavigation()
+
+        self.setStyleSheet(window_stylesheet())
 
         self.detailInterface = DetailPage(self)
         self.stackedWidget.addWidget(self.detailInterface)
@@ -189,9 +191,10 @@ class MainWindow(FluentWindow):
         try:
             flavor = Flavor(flavor_value)
         except ValueError:
-            logger.warning("Invalid flavor '%s', falling back to MOCHA", flavor_value)
-            flavor = Flavor.MOCHA
+            logger.warning("Invalid flavor '%s', falling back to FRAPPE", flavor_value)
+            flavor = Flavor.FRAPPE
         init_theme(flavor)
+        self.setStyleSheet(window_stylesheet())
         logger.info("Theme changed to {}", flavor.value)
 
         from .widgets.anime_card import AnimeCard

@@ -151,7 +151,7 @@ def main() -> int:
     window.show()
     print("[ok] MainWindow shown", flush=True)
     signalBus.themeChanged.emit(Flavor.LATTE.value)
-    signalBus.themeChanged.emit(Flavor.MOCHA.value)
+    signalBus.themeChanged.emit(Flavor.FRAPPE.value)
     print("[ok] theme switch signals dispatched", flush=True)
 
     QTimer.singleShot(50, app.quit)

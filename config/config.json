@@ -1,13 +1,4 @@
 {
-    "QFluentWidgets": {
-        "FontFamilies": [
-            "Segoe UI",
-            "Microsoft YaHeHe",
-            "PingFang SC"
-        ],
-        "ThemeColor": "#ff009faa",
-        "ThemeMode": "Dark"
-    },
     "app": {
         "name": "Anitrack",
         "version": "0.1.0",
@@ -18,26 +9,26 @@
     "theme": {
         "mode": "Dark",
         "dark": {
-            "text": "#cdd6f4",
-            "muted": "#a6adc8",
-            "background": "#272727",
-            "surface": "#313244",
-            "title": "#cdd6f4",
-            "pill_bg": "#89b4fa",
-            "pill_text": "#1e1e2e",
-            "selection": "#fab387",
-            "badge_bg": "#a6e3a1"
+            "text": "#c6d0f5",
+            "muted": "#838ba7",
+            "background": "#303446",
+            "surface": "#292c3c",
+            "title": "#c6d0f5",
+            "pill_bg": "#8caaee",
+            "pill_text": "#292c3c",
+            "selection": "#f5a97f",
+            "badge_bg": "#a6d189"
         },
         "light": {
             "text": "#4c4f69",
-            "muted": "#5c5f77",
-            "background": "#f9f9f9",
+            "muted": "#6c6f85",
+            "background": "#eff1f5",
             "surface": "#e6e9ef",
-            "title": "#1a1a1a",
+            "title": "#4c4f69",
             "pill_bg": "#1e66f5",
             "pill_text": "#ffffff",
-            "selection": "#fab387",
-            "badge_bg": "#a6e3a1"
+            "selection": "#fe640b",
+            "badge_bg": "#40a02b"
         }
     },
     "ui": {

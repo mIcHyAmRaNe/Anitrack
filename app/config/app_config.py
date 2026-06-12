@@ -12,42 +12,21 @@ def _default_config_path() -> Path:
     return Path(__file__).parent.parent.parent / "config" / "config.json"
 
 
-_DEFAULTS: dict[str, Any] = {
-    "app": {"name": "Anitrack", "version": "0.1.0"},
-    "theme": {
-        "mode": "Dark",
-        "dark": {"text": "#cdd6f4", "background": "#272727"},
-        "light": {"text": "#4c4f69", "background": "#f9f9f9"},
-    },
-}
-
-
-def _deep_merge(base: dict, override: dict) -> dict:
-    result = base.copy()
-    for k, v in override.items():
-        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
-            result[k] = _deep_merge(result[k], v)
-        else:
-            result[k] = v
-    return result
-
-
 class AppConfig:
     _data: dict[str, Any] = {}
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> None:
-        cls._data = _deep_merge(_DEFAULTS, {})
         if path is None:
             path = _default_config_path()
         else:
             path = Path(path)
         try:
-            overrides = json.loads(path.read_text(encoding="utf-8"))
-            cls._data = _deep_merge(cls._data, overrides)
+            cls._data = json.loads(path.read_text(encoding="utf-8"))
             logger.info("Config loaded from {}", path)
         except (OSError, json.JSONDecodeError) as e:
             logger.warning("Failed to load config from {}: {}", path, e)
+            cls._data = {}
 
     @classmethod
     def _get(cls, *keys: str) -> Any:

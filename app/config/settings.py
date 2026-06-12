@@ -16,7 +16,7 @@ class Config(QConfig):
     themeMode = OptionsConfigItem(
         "MainWindow",
         "ThemeMode",
-        Flavor.MOCHA.value,
+        Flavor.FRAPPE.value,
         OptionsValidator([f.value for f in Flavor]),
     )
     downloadCover = ConfigItem("MainWindow", "DownloadCover", True, BoolValidator())
@@ -33,4 +33,4 @@ def current_flavor() -> Flavor:
     try:
         return Flavor(raw)
     except ValueError:
-        return Flavor.MOCHA
+        return Flavor.FRAPPE

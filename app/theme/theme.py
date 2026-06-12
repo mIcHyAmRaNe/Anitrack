@@ -9,7 +9,7 @@ from ..config.app_config import AppConfig
 
 
 class Flavor(str, Enum):
-    MOCHA = "mocha"
+    FRAPPE = "frappe"
     LATTE = "latte"
 
 
@@ -22,8 +22,8 @@ STATUS_FLUENT_ICONS = {
 }
 
 
-def init_theme(flavor: Flavor = Flavor.MOCHA) -> None:
-    setTheme(Theme.DARK if flavor is Flavor.MOCHA else Theme.LIGHT)
+def init_theme(flavor: Flavor = Flavor.FRAPPE) -> None:
+    setTheme(Theme.DARK if flavor is Flavor.FRAPPE else Theme.LIGHT)
 
 
 def _dark() -> bool:
@@ -56,3 +56,13 @@ def pill_bg() -> str:
 
 def pill_text() -> str:
     return AppConfig.pill_text(_dark())
+
+
+def window_stylesheet() -> str:
+    bg = interface_background()
+    sc = surface_color()
+    return (
+        f"FluentWindow {{ background: {bg}; }}"
+        f"QStackedWidget {{ background: {bg}; }}"
+        f"NavigationInterface {{ background: {sc}; }}"
+    )

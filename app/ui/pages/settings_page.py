@@ -86,7 +86,7 @@ class SettingsPage(QWidget):
             cfg.themeMode,
             FIF.BRUSH,
             "Theme",
-            "Switch between the dark Mocha and light Latte flavors.",
+            "Switch between the dark Frappé and light Latte flavors.",
             texts=[f.value.capitalize() for f in Flavor],
             parent=self.host,
         )

@@ -73,8 +73,8 @@ def main() -> int:
     try:
         flavor = current_flavor()
     except ValueError:
-        logger.warning("Invalid theme in config, falling back to MOCHA")
-        flavor = Flavor.MOCHA
+        logger.warning("Invalid theme in config, falling back to FRAPPE")
+        flavor = Flavor.FRAPPE
     init_theme(flavor)
     logger.info("Initial theme: {}", flavor.value)
 
