@@ -1,11 +1,12 @@
+"""Character card with avatar and click-to-open MAL page."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
-from qfluentwidgets import AvatarWidget, CaptionLabel, ElevatedCardWidget, isDarkTheme
+from qfluentwidgets import AvatarWidget, CaptionLabel, ElevatedCardWidget
 
-from ...config.app_config import AppConfig
 from ...services.image_cache import image_loader
 
 
@@ -14,28 +15,25 @@ class CharacterCard(ElevatedCardWidget):
         if not isinstance(char_data, dict):
             raise TypeError(f"Expected dict, got {type(char_data).__name__}")
         super().__init__(parent)
-        char_card_w = AppConfig.char_card_w()
-        char_card_h = AppConfig.char_card_h()
-        self.setFixedSize(char_card_w, char_card_h)
-        self.setBorderRadius(AppConfig.char_radius())
+        self.setFixedSize(100, 140)
+        self.setBorderRadius(8)
         self.setClickEnabled(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        char = char_data.get("character", {})
+        char = char_data.get("character") or {}
         self._page_url = char.get("url", "")
         self._image_url = ""
 
         self.avatar = AvatarWidget(self)
-        self.avatar.setRadius(AppConfig.char_avatar_radius())
-        self.avatar.setStyleSheet("background: transparent;")
+        self.avatar.setRadius(42)
 
         self.name_label = CaptionLabel(char.get("name", "")[:24], self)
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(*AppConfig.get("ui", "margins", "char_card"))
-        layout.setSpacing(AppConfig.get("ui", "spacing", "xs"))
+        layout.setContentsMargins(6, 8, 6, 8)
+        layout.setSpacing(4)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self.avatar, 0, Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self.name_label, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -46,23 +44,16 @@ class CharacterCard(ElevatedCardWidget):
             self._image_url = jpg_url
             image_loader().load(jpg_url, callback=self._on_image)
 
-        self.refresh_theme()
-
     def _on_image(self, url: str, pix: QPixmap) -> None:
-        if url == self._image_url:
-            s = AppConfig.char_img_size()
-            self.avatar.setImage(
-                pix.scaled(
-                    s,
-                    s,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
+        if url != self._image_url:
+            return
+        self.avatar.setImage(
+            pix.scaled(
+                80,
+                80,
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
             )
-
-    def refresh_theme(self) -> None:
-        self.name_label.setStyleSheet(
-            f"background: transparent; color: {AppConfig.text_color(isDarkTheme())};"
         )
 
     def mousePressEvent(self, e: QMouseEvent) -> None:

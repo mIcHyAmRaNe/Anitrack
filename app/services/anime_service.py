@@ -1,47 +1,57 @@
+"""High-level anime data fetchers used by the detail-page background worker."""
+
 from __future__ import annotations
 
 from typing import Any
 
 from loguru import logger
 
+from ..models.anime import validate_mal_id
 from .api_client import client
 
 
-def _validate_mal_id(mal_id: int) -> None:
-    if not isinstance(mal_id, int) or mal_id <= 0:
-        raise ValueError(f"mal_id must be a positive integer, got {mal_id!r}")
-
-
 def fetch_detail(mal_id: int) -> tuple[dict[str, Any], list, list, list]:
-    _validate_mal_id(mal_id)
-    full_data: dict[str, Any] = {}
-    chars: list = []
-    rels: list = []
-    recs: list = []
+    """Fetch everything needed to render the anime-detail page.
 
-    try:
-        result = client().get_anime_full(mal_id)
-        full_data = result.get("data", {})
-        logger.info("Fetched full data for mal_id={}", mal_id)
-    except Exception as exc:
-        logger.error("Failed to fetch anime full [{}]: {}", mal_id, exc)
-
-    try:
-        chars = client().get_anime_characters(mal_id)
-        logger.info("Fetched {} characters for mal_id={}", len(chars), mal_id)
-    except Exception as exc:
-        logger.error("Failed to fetch characters [{}]: {}", mal_id, exc)
-
-    try:
-        rels = client().get_anime_relations(mal_id)
-        logger.info("Fetched {} relations for mal_id={}", len(rels), mal_id)
-    except Exception as exc:
-        logger.error("Failed to fetch relations [{}]: {}", mal_id, exc)
-
-    try:
-        recs = client().get_recommendations(mal_id)
-        logger.info("Fetched {} recommendations for mal_id={}", len(recs), mal_id)
-    except Exception as exc:
-        logger.error("Failed to fetch recommendations [{}]: {}", mal_id, exc)
-
-    return full_data, chars, rels, recs
+    Each sub-request is independent: a failure in one (network blip, 404 on
+    relations, etc.) does not abort the others. Returns empty containers for
+    the parts that failed so the UI can degrade gracefully.
+    """
+    validate_mal_id(mal_id)
+    requests: list[tuple[str, Any, str]] = [
+        ("full", lambda: client().get_anime_full(mal_id), ""),
+        (
+            "characters",
+            lambda: client().get_anime_characters(mal_id),
+            "characters",
+        ),
+        (
+            "relations",
+            lambda: client().get_anime_relations(mal_id),
+            "relations",
+        ),
+        (
+            "recommendations",
+            lambda: client().get_recommendations(mal_id),
+            "recommendations",
+        ),
+    ]
+    results: dict[str, Any] = {
+        "full": {},
+        "characters": [],
+        "relations": [],
+        "recommendations": [],
+    }
+    for label, op, _ in requests:
+        try:
+            data = op()
+            results[label] = data.get("data") if label == "full" else data
+            logger.info("Fetched {} for mal_id={}", label, mal_id)
+        except Exception as exc:
+            logger.error("Failed to fetch {} [{}]: {}", label, mal_id, exc)
+    return (
+        results["full"],
+        results["characters"],
+        results["relations"],
+        results["recommendations"],
+    )

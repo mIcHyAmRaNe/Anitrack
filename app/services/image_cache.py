@@ -150,7 +150,6 @@ def placeholder_pixmap(width: int, height: int) -> QPixmap:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     painter.setBrush(QColor(70, 70, 90, 80))
     painter.setPen(Qt.PenStyle.NoPen)
-    r = AppConfig.get("ui", "radius", "placeholder")
-    painter.drawRoundedRect(0, 0, width, height, r, r)
+    painter.drawRoundedRect(0, 0, width, height, 10, 10)
     painter.end()
     return QPixmap.fromImage(img)

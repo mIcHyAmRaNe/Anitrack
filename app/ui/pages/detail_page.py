@@ -16,15 +16,13 @@ from qfluentwidgets import (
     ToggleToolButton,
     ToolTipFilter,
     TransparentToolButton,
-    isDarkTheme,
 )
 from qfluentwidgets import FluentIcon as FIF
 
 from ...config.app_config import AppConfig
-from ...models.anime import Anime, AnimeStatus
+from ...models.anime import STATUS_FLUENT_ICONS, Anime, AnimeStatus
 from ...models.library import get_library
 from ...services.image_cache import image_loader, placeholder_pixmap, rounded_pixmap
-from ...theme.theme import STATUS_FLUENT_ICONS, interface_background, text_color
 from ..signal_bus import signalBus
 from ..widgets.character_card import CharacterCard
 from ..widgets.recommendation_card import RecommendationCard
@@ -40,24 +38,20 @@ def build_horizontal_section(
     section.setVisible(False)
     layout = QVBoxLayout(section)
     layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(AppConfig.get("ui", "spacing", "sm"))
+    layout.setSpacing(8)
 
     title_label = StrongBodyLabel(title)
     title_label.setObjectName(f"sectionTitle_{title}")
-    title_label.setStyleSheet(
-        f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'base')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'semibold')};color:{text_color()};"
-    )
     layout.addWidget(title_label)
 
     scroll = SingleDirectionScrollArea(orient=Qt.Orientation.Horizontal)
-    scroll.setFixedHeight(card_height + AppConfig.detail_scroll_height_offset())
+    scroll.setFixedHeight(card_height + 8)
     scroll.enableTransparentBackground()
-    scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
 
     host = QWidget()
     host_layout = QHBoxLayout(host)
     host_layout.setContentsMargins(0, 0, 0, 0)
-    host_layout.setSpacing(AppConfig.get("ui", "spacing", "xs"))
+    host_layout.setSpacing(4)
     host_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
     scroll.setWidget(host)
     layout.addWidget(scroll)
@@ -94,14 +88,9 @@ class DetailPage(QWidget):
         self.vBoxLayout.setSpacing(0)
 
         self._header_widget = QWidget(self)
-        self._header_widget.setFixedHeight(
-            AppConfig.get("ui", "sizes", "detail_header_height")
-        )
-        self._header_widget.setStyleSheet("background: transparent;")
+        self._header_widget.setFixedHeight(56)
         headerLayout = QHBoxLayout(self._header_widget)
-        headerLayout.setContentsMargins(
-            *AppConfig.get("ui", "margins", "detail_header")
-        )
+        headerLayout.setContentsMargins(28, 8, 28, 8)
 
         self.backBtn = TransparentToolButton(FIF.LEFT_ARROW, self)
         self.backBtn.setToolTip("Go Back")
@@ -109,12 +98,9 @@ class DetailPage(QWidget):
 
         self.titleLabel = TitleLabel("Loading...", self)
         self.titleLabel.setWordWrap(True)
-        self.titleLabel.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'xl')}px;color:{text_color()};"
-        )
 
         headerLayout.addWidget(self.backBtn)
-        headerLayout.addSpacing(AppConfig.detail_header_spacing())
+        headerLayout.addSpacing(8)
         headerLayout.addWidget(self.titleLabel, 1)
         self.vBoxLayout.addWidget(self._header_widget)
 
@@ -123,60 +109,45 @@ class DetailPage(QWidget):
         self.scrollArea.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.scrollArea.enableTransparentBackground()
         self.scrollArea.setStyleSheet(
-            "QScrollArea { background: transparent; border: none; }"
+            "QScrollArea{background:transparent;border:none;}"
         )
+        viewport = self.scrollArea.viewport()
+        if viewport is not None:
+            viewport.setStyleSheet("background:transparent;")
 
         self.scrollWidget = QWidget()
-        self.scrollWidget.setStyleSheet(f"background: {interface_background()};")
         self.scrollLayout = QVBoxLayout(self.scrollWidget)
-        self.scrollLayout.setContentsMargins(
-            *AppConfig.get("ui", "margins", "detail_scroll")
-        )
-        self.scrollLayout.setSpacing(AppConfig.get("ui", "spacing", "xl"))
+        self.scrollLayout.setContentsMargins(28, 24, 28, 40)
+        self.scrollLayout.setSpacing(24)
 
         top_widget = QWidget()
-        top_widget.setStyleSheet("background: transparent;")
         top_layout = QHBoxLayout(top_widget)
         top_layout.setContentsMargins(0, 0, 0, 0)
-        top_layout.setSpacing(AppConfig.get("ui", "spacing", "xxl"))
+        top_layout.setSpacing(32)
 
         left_panel = QVBoxLayout()
-        left_panel.setSpacing(AppConfig.get("ui", "spacing", "lg"))
+        left_panel.setSpacing(16)
         left_panel.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.coverLabel = QLabel()
-        self.coverLabel.setFixedSize(
-            AppConfig.detail_cover_w(), AppConfig.detail_cover_h()
-        )
-        self.coverLabel.setPixmap(
-            rounded_pixmap(
-                placeholder_pixmap(
-                    AppConfig.detail_cover_w(), AppConfig.detail_cover_h()
-                ),
-                AppConfig.card_radius(),
-            )
-        )
+        self.coverLabel.setFixedSize(260, 370)
+        self.coverLabel.setPixmap(rounded_pixmap(placeholder_pixmap(260, 370), 10))
         self.coverLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.coverLabel.setStyleSheet(
-            f"background: transparent; border-radius: {AppConfig.card_radius()}px;"
-        )
         left_panel.addWidget(self.coverLabel, 0, Qt.AlignmentFlag.AlignTop)
 
         self.statusButtonGroup = QHBoxLayout()
-        self.statusButtonGroup.setSpacing(AppConfig.get("ui", "spacing", "sm"))
+        self.statusButtonGroup.setSpacing(8)
         self.statusButtonGroup.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._status_btns: dict[AnimeStatus, ToggleToolButton] = {}
         for status in AnimeStatus:
             btn = ToggleToolButton(self)
-            btn.setFixedSize(
-                AppConfig.get("ui", "sizes", "status_toggle"),
-                AppConfig.get("ui", "sizes", "status_toggle"),
-            )
+            btn.setFixedSize(42, 42)
             btn.setIcon(STATUS_FLUENT_ICONS[status.value].icon())
             btn.setToolTip(status.label)
-            btn.installEventFilter(ToolTipFilter(btn, AppConfig.tooltip_filter_ms()))
+            btn.installEventFilter(ToolTipFilter(btn, 300))
             btn.clicked.connect(lambda checked, s=status: self._on_status_clicked(s))
             self._status_btns[status] = btn
             self.statusButtonGroup.addWidget(btn)
@@ -186,10 +157,10 @@ class DetailPage(QWidget):
         top_layout.addLayout(left_panel)
 
         right_panel = QVBoxLayout()
-        right_panel.setSpacing(AppConfig.get("ui", "spacing", "md"))
+        right_panel.setSpacing(12)
 
         self.badgesRow = QHBoxLayout()
-        self.badgesRow.setSpacing(AppConfig.get("ui", "spacing", "xs"))
+        self.badgesRow.setSpacing(4)
         self.badgesRow.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.typeBadge = QLabel()
@@ -203,7 +174,7 @@ class DetailPage(QWidget):
         self.badgesRow.addStretch(1)
 
         self.scoreRankRow = QHBoxLayout()
-        self.scoreRankRow.setSpacing(AppConfig.get("ui", "spacing", "lg"))
+        self.scoreRankRow.setSpacing(16)
         self.scoreLabel = StrongBodyLabel("")
         self.scoreLabel.hide()
         self.rankLabel = CaptionLabel("")
@@ -213,7 +184,7 @@ class DetailPage(QWidget):
         self.scoreRankRow.addStretch(1)
 
         self.genresRow = QHBoxLayout()
-        self.genresRow.setSpacing(AppConfig.get("ui", "spacing", "xs"))
+        self.genresRow.setSpacing(4)
         self.genresRow.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.synopsisLabel = BodyLabel("Loading details...")
@@ -221,13 +192,9 @@ class DetailPage(QWidget):
         self.synopsisLabel.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
-        self.synopsisLabel.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'md')}px;color:{text_color()};"
-        )
 
         self.loadingSpinner = IndeterminateProgressRing(self)
-        spinner_sz = AppConfig.detail_spinner_size()
-        self.loadingSpinner.setFixedSize(spinner_sz, spinner_sz)
+        self.loadingSpinner.setFixedSize(24, 24)
         self.loadingSpinner.hide()
 
         self.urlLabel = HyperlinkLabel("")
@@ -235,16 +202,16 @@ class DetailPage(QWidget):
         right_panel.addLayout(self.badgesRow)
         right_panel.addLayout(self.scoreRankRow)
         right_panel.addLayout(self.genresRow)
-        right_panel.addSpacing(AppConfig.detail_genres_spacing())
+        right_panel.addSpacing(8)
         right_panel.addWidget(self.synopsisLabel)
 
         spinnerRow = QHBoxLayout()
-        spinnerRow.setContentsMargins(0, AppConfig.detail_spinner_margin_top(), 0, 0)
+        spinnerRow.setContentsMargins(0, 2, 0, 0)
         spinnerRow.addWidget(self.loadingSpinner)
         spinnerRow.addStretch(1)
         right_panel.addLayout(spinnerRow)
 
-        right_panel.addSpacing(AppConfig.detail_url_spacing())
+        right_panel.addSpacing(4)
         right_panel.addWidget(self.urlLabel)
         right_panel.addStretch(1)
 
@@ -252,24 +219,23 @@ class DetailPage(QWidget):
         self.scrollLayout.addWidget(top_widget)
 
         (self.charSection, self.charHostLayout, _title, self._charScroll) = (
-            build_horizontal_section("Characters", AppConfig.char_card_h())
+            build_horizontal_section("Characters", 140)
         )
-        self.charSection.setStyleSheet("background: transparent;")
         self._section_titles.append(_title)
         self._install_inner_scroll_filter(self._charScroll)
         self.scrollLayout.addWidget(self.charSection)
 
         (self.relSection, self.relHostLayout, _title, self._relScroll) = (
-            build_horizontal_section("Relations", AppConfig.small_card_h())
+            build_horizontal_section("Relations", 195)
         )
         self._section_titles.append(_title)
         self._install_inner_scroll_filter(self._relScroll)
         self.scrollLayout.addWidget(self.relSection)
 
         (self.recSection, self.recHostLayout, _title, self._recScroll) = (
-            build_horizontal_section("Recommendations", AppConfig.small_card_h())
+            build_horizontal_section("Recommendations", 195)
         )
-        self.recHostLayout.setSpacing(AppConfig.get("ui", "spacing", "md"))
+        self.recHostLayout.setSpacing(12)
         self._section_titles.append(_title)
         self._install_inner_scroll_filter(self._recScroll)
         self.scrollLayout.addWidget(self.recSection)
@@ -278,12 +244,9 @@ class DetailPage(QWidget):
         self.trailerSection.setVisible(False)
         trailer_section_layout = QVBoxLayout(self.trailerSection)
         trailer_section_layout.setContentsMargins(0, 0, 0, 0)
-        trailer_section_layout.setSpacing(AppConfig.get("ui", "spacing", "sm"))
+        trailer_section_layout.setSpacing(8)
 
         self._trailer_title = StrongBodyLabel("Trailer")
-        self._trailer_title.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'base')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'semibold')};color:{text_color()};"
-        )
         trailer_section_layout.addWidget(self._trailer_title)
 
         self.trailerWidget = TrailerWidget({})
@@ -295,53 +258,6 @@ class DetailPage(QWidget):
         self.vBoxLayout.addWidget(self.scrollArea, 1)
 
         image_loader().loaded.connect(self._on_cover)
-
-    def refresh_theme(self) -> None:
-        dark = isDarkTheme()
-        bg = AppConfig.background_color(dark)
-        fc = AppConfig.text_color(dark)
-        fs = AppConfig.get("ui", "font", "sizes")
-        fw = AppConfig.get("ui", "font", "weights")
-        self.scrollWidget.setStyleSheet(f"background: {bg};")
-        self.titleLabel.setStyleSheet(f"font-size:{fs['xl']}px;color:{fc};")
-        self.synopsisLabel.setStyleSheet(f"font-size:{fs['md']}px;color:{fc};")
-        self._trailer_title.setStyleSheet(
-            f"font-size:{fs['base']}px;font-weight:{fw['semibold']};color:{fc};"
-        )
-        for status, btn in self._status_btns.items():
-            btn.setIcon(STATUS_FLUENT_ICONS[status.value].icon())
-        for badge in (self.typeBadge, self.epsBadge, self.statusBadge, self.yearBadge):
-            if badge.text():
-                badge.setStyleSheet(
-                    f"padding:{AppConfig.get('ui', 'padding', 'badge')};border-radius:{AppConfig.get('ui', 'radius', 'badge')}px;font-size:{fs['xs']}px;font-weight:{fw['semibold']};color:{fc};"
-                )
-        if self.scoreLabel.text():
-            self.scoreLabel.setStyleSheet(
-                f"font-size:{fs['xxl']}px;font-weight:{fw['bold']};color:{fc};"
-            )
-        if self.rankLabel.text():
-            self.rankLabel.setStyleSheet(
-                f"font-size:{fs['sm']}px;font-weight:{fw['semibold']};color:{fc};"
-            )
-        for i in range(self.genresRow.count()):
-            item = self.genresRow.itemAt(i)
-            if not item:
-                continue
-            w = item.widget()
-            if isinstance(w, CaptionLabel):
-                w.setStyleSheet(
-                    f"padding:{AppConfig.get('ui', 'padding', 'tag')};border-radius:{AppConfig.get('ui', 'radius', 'tag')}px;font-size:{fs['xs']}px;font-weight:{fw['semibold']};color:{fc};"
-                )
-        for title_label in self._section_titles:
-            title_label.setStyleSheet(
-                f"font-size:{fs['base']}px;font-weight:{fw['semibold']};color:{fc};"
-            )
-        for card in self.findChildren(CharacterCard):
-            card.refresh_theme()
-        for card in self.findChildren(RelationCard):
-            card.refresh_theme()
-        for card in self.findChildren(RecommendationCard):
-            card.refresh_theme()
 
     def _install_inner_scroll_filter(self, scroll_area) -> None:
         scroll_area.installEventFilter(self)
@@ -409,9 +325,6 @@ class DetailPage(QWidget):
 
         if anime.score:
             self.scoreLabel.setText(f"\u2605 {anime.score:.2f}")
-            self.scoreLabel.setStyleSheet(
-                f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'xxl')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'bold')};color:{text_color()};"
-            )
             self.scoreLabel.show()
 
         self._update_genres(anime.genres)
@@ -442,14 +355,12 @@ class DetailPage(QWidget):
         if self._anime_model and url == self._anime_model.image_url:
             if isinstance(pix, QPixmap):
                 scaled = pix.scaled(
-                    AppConfig.detail_cover_w(),
-                    AppConfig.detail_cover_h(),
+                    260,
+                    370,
                     Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                     Qt.TransformationMode.SmoothTransformation,
                 )
-                self.coverLabel.setPixmap(
-                    rounded_pixmap(scaled, AppConfig.card_radius())
-                )
+                self.coverLabel.setPixmap(rounded_pixmap(scaled, 10))
 
     def _on_status_clicked(self, status: AnimeStatus) -> None:
         if not self._ready or not self._anime_model:
@@ -475,12 +386,7 @@ class DetailPage(QWidget):
 
     def _setup_badge(self, text: str, badge: QLabel) -> None:
         if text and text != "?":
-            fs = AppConfig.get("ui", "font", "sizes")
-            fw = AppConfig.get("ui", "font", "weights")
             badge.setText(text)
-            badge.setStyleSheet(
-                f"padding:{AppConfig.get('ui', 'padding', 'badge')};border-radius:{AppConfig.get('ui', 'radius', 'badge')}px;font-size:{fs['xs']}px;font-weight:{fw['semibold']};color:{text_color()};"
-            )
             badge.show()
         else:
             badge.hide()
@@ -489,13 +395,8 @@ class DetailPage(QWidget):
         _clear_layout(self.genresRow)
         if not genres:
             return
-        fs = AppConfig.get("ui", "font", "sizes")
-        fw = AppConfig.get("ui", "font", "weights")
         for g in genres:
             label = CaptionLabel(g)
-            label.setStyleSheet(
-                f"padding:{AppConfig.get('ui', 'padding', 'tag')};border-radius:{AppConfig.get('ui', 'radius', 'tag')}px;font-size:{fs['xs']}px;font-weight:{fw['semibold']};color:{text_color()};"
-            )
             self.genresRow.addWidget(label)
         self.genresRow.addStretch(1)
 
@@ -530,18 +431,12 @@ class DetailPage(QWidget):
             self._setup_badge(str(anime.year) if anime.year else "", self.yearBadge)
             if anime.score:
                 self.scoreLabel.setText(f"\u2605 {anime.score:.2f}")
-                self.scoreLabel.setStyleSheet(
-                    f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'xxl')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'bold')};color:{text_color()};"
-                )
                 self.scoreLabel.show()
             else:
                 self.scoreLabel.hide()
             rank = full_data.get("rank")
             if rank:
                 self.rankLabel.setText(f"Rank #{rank}")
-                self.rankLabel.setStyleSheet(
-                    f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'sm')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'semibold')};color:{text_color()};"
-                )
                 self.rankLabel.show()
             else:
                 self.rankLabel.hide()
@@ -566,54 +461,47 @@ class DetailPage(QWidget):
         self._populate_recommendations(recommendations)
 
     def _populate_characters(self, characters: list) -> None:
-        _clear_layout(self.charHostLayout)
-        if not characters:
-            self.charSection.setVisible(False)
-            return
-        limit = AppConfig.characters_limit()
-        for c in characters[:limit]:
-            card = CharacterCard(c)
-            card.installEventFilter(self)
-            self.charHostLayout.addWidget(card)
-        self.charHostLayout.addStretch(1)
-        parent = self.charHostLayout.parentWidget()
-        if parent is not None:
-            parent.adjustSize()
-        self.charSection.setVisible(True)
+        self._populate_section(
+            self.charHostLayout,
+            self.charSection,
+            characters[: AppConfig.characters_limit()],
+            lambda c: CharacterCard(c),
+        )
 
     def _populate_relations(self, relations: list) -> None:
-        _clear_layout(self.relHostLayout)
-        if not relations:
-            self.relSection.setVisible(False)
-            return
+        cards: list = []
         for rel in relations:
             rel_type = rel.get("relation", "")
-            for entry in rel.get("entry", []):
-                if not entry or not entry.get("mal_id"):
-                    continue
-                card = RelationCard(entry, rel_type)
-                card.installEventFilter(self)
-                self.relHostLayout.addWidget(card)
-        self.relHostLayout.addStretch(1)
-        parent = self.relHostLayout.parentWidget()
-        if parent is not None:
-            parent.adjustSize()
-        self.relSection.setVisible(True)
+            for entry in rel.get("entry") or []:
+                if isinstance(entry, dict) and entry.get("mal_id"):
+                    cards.append(RelationCard(entry, rel_type))
+        self._populate_section(self.relHostLayout, self.relSection, cards, lambda c: c)
 
     def _populate_recommendations(self, recommendations: list) -> None:
-        _clear_layout(self.recHostLayout)
-        if not recommendations:
-            self.recSection.setVisible(False)
-            return
+        cards: list = []
         for rec in recommendations:
             entry = rec.get("entry")
-            if not entry or not entry.get("mal_id"):
-                continue
-            card = RecommendationCard(entry)
+            if isinstance(entry, dict) and entry.get("mal_id"):
+                cards.append(RecommendationCard(entry))
+        self._populate_section(self.recHostLayout, self.recSection, cards, lambda c: c)
+
+    def _populate_section(
+        self,
+        layout: QHBoxLayout,
+        section: QWidget,
+        items: list,
+        factory,
+    ) -> None:
+        _clear_layout(layout)
+        if not items:
+            section.setVisible(False)
+            return
+        for item in items:
+            card = factory(item)
             card.installEventFilter(self)
-            self.recHostLayout.addWidget(card)
-        self.recHostLayout.addStretch(1)
-        parent = self.recHostLayout.parentWidget()
+            layout.addWidget(card)
+        layout.addStretch(1)
+        parent = layout.parentWidget()
         if parent is not None:
             parent.adjustSize()
-        self.recSection.setVisible(True)
+        section.setVisible(True)

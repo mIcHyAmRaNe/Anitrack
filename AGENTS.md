@@ -5,43 +5,29 @@ Drop-in operating instructions for coding agents. Read this file before every ta
 
 ---
 
-## Docs management
-
-- When you need to search docs, use Context7.
-
----
-
 ## Package management
 
-- This project uses uv for all package management
-- Never run commands directly (python, pytest, etc.)
-- Always prefix commands with `uv run <command>`
-- Example: `uv run python script.py` not `python script.py`
-- Example: `uv run pytest` not `pytest`
+- This project uses **uv** for all package management.
+- Never run commands directly (`python`, `pytest`, etc.).
+- Always prefix commands with `uv run <command>`.
+- Example: `uv run python script.py` not `python script.py`.
 
 ---
 
 ## Build, lint, test
 
 ```bash
-uv run ruff check          # lint
-uv run python smoke_test.py       # headless import + window build test
-uv run python behavior_test.py    # end-to-end behavior test (no network)
-uv run python build.py            # builds dist/Anitrack.exe via PyInstaller
+uv sync                          # install deps (required first time)
+uv run ruff check                # lint
+uv run python smoke_test.py      # headless import + window build test
+uv run python behavior_test.py   # end-to-end behavior test (no network)
+uv run python build.py           # builds dist/Anitrack.exe via PyInstaller
 ```
 
 - No formal test framework. The two `*_test.py` files are standalone scripts.
 - Both tests run headless (`QT_QPA_PLATFORM=offscreen`) and never hit the network.
-- CI runs on Windows only (see `.github/workflows/ci.yml`).
-
----
-
-## Two config systems (don't mix them up)
-
-1. **`config/config.json` → `AppConfig`** — holds all UI constants (colors, sizes, spacing, API settings). Loaded once at startup. This is the single source of truth for user-facing values.
-2. **`app/config/settings.py` → `cfg` (QConfig)** — holds runtime user preferences (theme mode, download cover toggle, local anime folders). Managed by `qfluentwidgets`.
-
-When adding a UI constant, add it to `config/config.json` + an `AppConfig` classmethod. Never hardcode in widget code.
+- CI runs on **Windows only** (`.github/workflows/ci.yml`): `lint` job → `build` job.
+- `Anitrack.spec` exists alongside `build.py` — `build.py` regenerates it each run.
 
 ---
 
@@ -50,36 +36,29 @@ When adding a UI constant, add it to `config/config.json` + an `AppConfig` class
 ```
 main.py → app/main.py (entry point)
 app/
-  config/     AppConfig (UI constants) + cfg (user prefs)
-  models/     Anime dataclass, Library singleton
-  services/   Jikan API client, image cache (QNetworkAccessManager)
-  theme/      Flavor enum (mocha/latte), theme helpers
+  config/     AppConfig (hardcoded defaults) + cfg (QConfig user prefs)
+  models/     Anime dataclass, Library singleton, AnimeStatus, STATUS_FLUENT_ICONS
+  services/   Jikan API client (httpx + diskcache), image cache (QNetworkAccessManager)
   ui/
     main_window.py    Top-level FluentWindow
     signal_bus.py     signalBus singleton for cross-component signals
+    workers.py        QThread workers for search, suggestions, detail fetch
     pages/            home, list, detail, settings, about
-    widgets/          anime_card, character_card, etc.
+    widgets/          base_card, anime_card, character_card, etc.
 ```
 
-- **Theme**: Mocha = dark, Latte = light. Stored in QConfig (`cfg.themeMode`).
-- **Signal bus**: `app/ui/signal_bus.py` — `signalBus` is the global singleton. Components communicate via its signals (libraryChanged, openAnimeDetail, themeChanged, etc.).
-- **Library**: Singleton via `get_library()`. Stored at `%LOCALAPPDATA%/anitrack/library.json` (Windows).
-- **API**: Jikan v4 (unofficial MyAnimeList API). Disk-cached responses in platform cache dir. Rate-limited with exponential backoff.
+- **No custom theming**: The app uses default qfluentwidgets styling. All `setStyleSheet` calls and theme helpers have been removed. Do not add custom styling.
+- **Signal bus**: `app/ui/signal_bus.py` — `signalBus` is the global singleton. Components communicate via its signals (libraryChanged, openAnimeDetail, goBack, etc.).
+- **Library**: Singleton via `get_library()`. Stored at platform-specific path: `%LOCALAPPDATA%/anitrack/library.json` (Windows) or `~/.local/share/anitrack/library.json` (Linux). Atomic writes via tempfile + `os.replace`.
+- **API**: Jikan v4 (unofficial MyAnimeList API). `JikanClient` is a singleton via `client()`. Disk-cached responses via `diskcache` in platform cache dir. Rate-limited with exponential backoff. Uses `httpx` (sync client).
+- **Image cache**: `ImageLoader` singleton via `image_loader()`. Uses `QNetworkAccessManager` for async fetches. File-based disk cache with 30-day eviction.
+- **Workers**: `SearchWorker`, `SuggestionsWorker`, `FetchDetailWorker` in `app/ui/workers.py` — all QThread subclasses. API calls run off the main thread.
 - **Entry point**: `pyproject.toml` defines `anitrack = "app.main:main"`.
 
 ---
 
-## Configuration: no hardcoded UI values
+## Configuration
 
-**`config/config.json` is the single source of truth for all user-facing values. `AppConfig` is the only way to read them. Never hardcode.**
-
-Rules:
-- **Never** write a raw number or color string directly in a widget file. If `config.json` does not have a key for it, add one there (and optionally a fallback in `_DEFAULTS`).
-- CSS strings in `setStyleSheet(...)` must use `AppConfig.get(...)` for every numeric or color value. No inline literals.
-- **Exception**: Pure layout-only values inherent to widget structure (e.g., `QVBoxLayout` default spacing of 0) are acceptable.
-
-When modifying a configuration file:
-1. Read the existing file.
-2. Identify the minimal set of keys that must change.
-3. Change only those keys.
-4. Verify that no unrelated key was added, removed, renamed, or reordered.
+- `AppConfig` (`app/config/app_config.py`) holds hardcoded defaults for app metadata, API settings, and path utilities. No file I/O — all values are constants.
+- `cfg` (`app/config/settings.py`) holds runtime user preferences (download cover toggle, local anime folders). Managed by `qfluentwidgets`.
+- There is no `config/config.json` and no custom theme system.

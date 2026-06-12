@@ -12,7 +12,6 @@ def main() -> int:
         "--onefile",
         "--windowed",
         "--name=Anitrack",
-        "--add-data=config;config",
         "--hidden-import=PyQt6.sip",
         "--collect-all=qfluentwidgets",
         "--noconfirm",

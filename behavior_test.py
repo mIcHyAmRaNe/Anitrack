@@ -4,7 +4,6 @@ Verifies:
 - Library singleton loads / saves / sorts favorites first
 - AnimeCard click signal can be emitted
 - ListInterface can be toggled into selection mode and back
-- Theme switch via signal bus works
 - HomeInterface builds
 """
 
@@ -20,14 +19,11 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import FluentTranslator
 
-from app.config.settings import cfg
 from app.models.anime import Anime, AnimeStatus
 from app.models.library import get_library
-from app.theme.theme import Flavor, init_theme
 from app.ui.main_window import MainWindow
 from app.ui.pages.home_page import HomePage
 from app.ui.pages.list_page import ListPage
-from app.ui.signal_bus import signalBus
 from app.ui.widgets.anime_card import AnimeCard
 
 
@@ -36,12 +32,6 @@ def main() -> int:
     app.setApplicationName("anitrack")
     app.setOrganizationName("anitrack")
     app.installTranslator(FluentTranslator())
-
-    try:
-        flavor = Flavor(cfg.get(cfg.themeMode))
-    except ValueError:
-        flavor = Flavor.MOCHA
-    init_theme(flavor)
 
     # --- Library singleton ---
     library = get_library()
@@ -102,8 +92,6 @@ def main() -> int:
     library.add(in_lib, AnimeStatus.WATCHING)
     card_in = AnimeCard(in_lib)
     card_in.update_status_badge()
-    # isVisible() requires the widget to actually be on screen; in a headless
-    # test we check isHidden() instead, which is the inverse of setVisible().
     assert not card_in.status_badge.isHidden(), (
         "status badge should show for library entry"
     )
@@ -146,13 +134,10 @@ def main() -> int:
     assert a1.favorite is False
     print("[ok] AnimeCard favoriteToggled signal", flush=True)
 
-    # --- MainWindow builds and theme switching works ---
+    # --- MainWindow builds ---
     window = MainWindow()
     window.show()
     print("[ok] MainWindow shown", flush=True)
-    signalBus.themeChanged.emit(Flavor.LATTE.value)
-    signalBus.themeChanged.emit(Flavor.FRAPPE.value)
-    print("[ok] theme switch signals dispatched", flush=True)
 
     QTimer.singleShot(50, app.quit)
     return app.exec()

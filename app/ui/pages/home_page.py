@@ -4,7 +4,6 @@ from loguru import logger
 from PyQt6.QtCore import QCoreApplication, Qt, QTimer
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QGraphicsOpacityEffect,
     QHBoxLayout,
     QStackedWidget,
     QVBoxLayout,
@@ -23,9 +22,7 @@ from qfluentwidgets import (
 
 from ...config.app_config import AppConfig
 from ...models.anime import Anime
-from ...theme.theme import interface_background
 from ..signal_bus import signalBus
-from ..widgets.base_card import sync_hover_after_scroll
 from ..widgets.suggestion_card import SuggestionCard
 from ..workers import SearchWorker, SuggestionsWorker
 
@@ -39,7 +36,7 @@ class HomePage(QWidget):
 
         self.titleLabel = TitleLabel("Anitrack", self)
         sf = QFont(AppConfig.font_family())
-        sf.setPointSize(AppConfig.subtitle_font_size())
+        sf.setPointSize(11)
         self.subtitleLabel = CaptionLabel("Search and add anime to your library.", self)
         self.subtitleLabel.setFont(sf)
 
@@ -48,11 +45,10 @@ class HomePage(QWidget):
             "Search anime on MyAnimeList\u2026  (Ctrl+F)"
         )
         self.searchEdit.setClearButtonEnabled(True)
-        self.searchEdit.setFixedWidth(AppConfig.get("ui", "sizes", "search_edit_home"))
+        self.searchEdit.setFixedWidth(520)
 
         self.progressRing = IndeterminateProgressRing(self)
-        ps = AppConfig.get("ui", "sizes", "progress_ring")
-        self.progressRing.setFixedSize(ps, ps)
+        self.progressRing.setFixedSize(20, 20)
         self.progressRing.hide()
 
         searchRow = QHBoxLayout()
@@ -74,14 +70,17 @@ class HomePage(QWidget):
         self.scrollArea.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        # self.scrollArea.viewport().setStyleSheet(
-        #     f"background: {interface_background()};"
-        # )
+        self.scrollArea.enableTransparentBackground()
+        self.scrollArea.setStyleSheet(
+            "QScrollArea{background:transparent;border:none;}"
+        )
+        viewport = self.scrollArea.viewport()
+        if viewport is not None:
+            viewport.setStyleSheet("background:transparent;")
 
         self.gridHost = QWidget(self.scrollArea)
-        self.gridHost.setStyleSheet(f"background: {interface_background()};")
         self.gridLayout = FlowLayout(self.gridHost, needAni=False)
-        self.gridLayout.setContentsMargins(*AppConfig.get("ui", "margins", "home_grid"))
+        self.gridLayout.setContentsMargins(20, 20, 20, 20)
         self.gridLayout.setSpacing(0)
         self.gridHost.setLayout(self.gridLayout)
         self.scrollArea.setWidget(self.gridHost)
@@ -97,13 +96,13 @@ class HomePage(QWidget):
         self.stack.setCurrentWidget(self.emptyLabel)
 
         self.vBoxLayout = QVBoxLayout(self)
-        self.vBoxLayout.setContentsMargins(*AppConfig.get("ui", "margins", "page"))
-        self.vBoxLayout.setSpacing(AppConfig.get("ui", "spacing", "sm"))
+        self.vBoxLayout.setContentsMargins(36, 28, 36, 28)
+        self.vBoxLayout.setSpacing(8)
         self.vBoxLayout.addWidget(self.titleLabel)
         self.vBoxLayout.addWidget(self.subtitleLabel)
-        self.vBoxLayout.addSpacing(AppConfig.home_subtitle_spacing())
+        self.vBoxLayout.addSpacing(6)
         self.vBoxLayout.addLayout(searchRow)
-        self.vBoxLayout.addSpacing(AppConfig.home_search_spacing())
+        self.vBoxLayout.addSpacing(12)
         self.vBoxLayout.addLayout(sectionRow)
         self.vBoxLayout.addWidget(self.stack, 1)
 
@@ -117,18 +116,8 @@ class HomePage(QWidget):
 
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
-        self._debounce.setInterval(AppConfig.search_debounce_ms())
+        self._debounce.setInterval(350)
         self._debounce.timeout.connect(self._run_search)
-
-        self._scroll_hover_timer = QTimer(self)
-        self._scroll_hover_timer.setSingleShot(True)
-        self._scroll_hover_timer.setInterval(
-            AppConfig.get("ui", "timing", "scroll_hover_ms")
-        )
-        self._scroll_hover_timer.timeout.connect(self._sync_hover_after_scroll)
-        sb = self.scrollArea.verticalScrollBar()
-        if sb is not None:
-            sb.valueChanged.connect(lambda _: self._scroll_hover_timer.start())
 
         self.searchEdit.textChanged.connect(self._on_query_changed)
         self.searchEdit.returnPressed.connect(self._run_search)
@@ -137,22 +126,7 @@ class HomePage(QWidget):
         super().showEvent(a0)
         if not self._load_triggered:
             self._load_triggered = True
-            QTimer.singleShot(AppConfig.suggestions_delay_ms(), self._load_suggestions)
-
-    def _fade_grid(self, active: bool) -> None:
-        if active:
-            effect = QGraphicsOpacityEffect(self.gridHost)
-            effect.setOpacity(AppConfig.get("ui", "opacity", "grid_fade"))
-            self.gridHost.setGraphicsEffect(effect)
-            self.progressRing.start()
-            self.progressRing.show()
-        else:
-            self.gridHost.setGraphicsEffect(None)
-            self.progressRing.stop()
-            self.progressRing.hide()
-
-    def _sync_hover_after_scroll(self) -> None:
-        sync_hover_after_scroll()
+            QTimer.singleShot(200, self._load_suggestions)
 
     def _stop_worker(self, attr: str) -> None:
         worker = getattr(self, attr, None)
@@ -173,7 +147,8 @@ class HomePage(QWidget):
     def _load_suggestions(self) -> None:
         self._show_suggestions = True
         self.sectionTitle.setText("Suggestions")
-        self._fade_grid(True)
+        self.progressRing.start()
+        self.progressRing.show()
         self._stop_worker("_suggestions_worker")
         self._suggestions_worker = SuggestionsWorker(
             limit=AppConfig.suggestions_limit(), parent=self
@@ -183,7 +158,8 @@ class HomePage(QWidget):
         self._suggestions_worker.start()
 
     def _on_suggestions(self, items: list) -> None:
-        self._fade_grid(False)
+        self.progressRing.stop()
+        self.progressRing.hide()
         self._clear_cards()
         self.stack.setCurrentWidget(self.scrollArea)
         for anime in items:
@@ -191,7 +167,8 @@ class HomePage(QWidget):
         self._suggestions_loaded = True
 
     def _on_suggestions_failed(self, error: str) -> None:
-        self._fade_grid(False)
+        self.progressRing.stop()
+        self.progressRing.hide()
         self.sectionTitle.setText("Suggestions unavailable")
         self.statusLabel.setText(f"Error: {error}")
         self.statusLabel.setVisible(True)
@@ -219,7 +196,8 @@ class HomePage(QWidget):
         self._show_suggestions = False
         self.sectionTitle.setText(f"Searching '{query}'...")
         self.statusLabel.setVisible(False)
-        self._fade_grid(True)
+        self.progressRing.start()
+        self.progressRing.show()
         self._stop_worker("_search_worker")
         self._search_worker = SearchWorker(query, parent=self)
         self._search_worker.finished_with_results.connect(self._on_search_results)
@@ -229,7 +207,8 @@ class HomePage(QWidget):
     def _on_search_results(self, query: str, items: list) -> None:
         if query != self._last_query:
             return
-        self._fade_grid(False)
+        self.progressRing.stop()
+        self.progressRing.hide()
         self._clear_cards()
         self.sectionTitle.setText("Search results")
         if not items:
@@ -245,7 +224,8 @@ class HomePage(QWidget):
     def _on_search_failed(self, query: str, error: str) -> None:
         if query != self._last_query:
             return
-        self._fade_grid(False)
+        self.progressRing.stop()
+        self.progressRing.hide()
         self.sectionTitle.setText("Search failed")
         self.statusLabel.setText(f"Error: {error}")
         self.statusLabel.setVisible(True)
@@ -275,10 +255,3 @@ class HomePage(QWidget):
             card.deleteLater()
         self._cards.clear()
         QCoreApplication.processEvents()
-
-    def refresh_theme(self) -> None:
-        bg = interface_background()
-        vp = self.scrollArea.viewport()
-        if vp is not None:
-            vp.setStyleSheet(f"background: {bg};")  # type: ignore[union-attr]
-        self.gridHost.setStyleSheet(f"background: {bg};")

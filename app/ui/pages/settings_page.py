@@ -13,24 +13,20 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import (
     ExpandGroupSettingCard,
     FolderListSettingCard,
     MessageBox,
-    OptionsSettingCard,
     PushSettingCard,
     ScrollArea,
     SettingCard,
     SettingCardGroup,
     TitleLabel,
-    isDarkTheme,
 )
+from qfluentwidgets import FluentIcon as FIF
 
-from ...config.app_config import AppConfig
 from ...config.settings import cfg
 from ...models.library import get_library, library_path
-from ...theme.theme import Flavor
 from ..signal_bus import signalBus
 
 
@@ -64,39 +60,33 @@ class SettingsPage(QWidget):
         self.scrollArea.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.scrollArea.enableTransparentBackground()
+        self.scrollArea.setStyleSheet(
+            "QScrollArea{background:transparent;border:none;}"
+        )
+        viewport = self.scrollArea.viewport()
+        if viewport is not None:
+            viewport.setStyleSheet("background:transparent;")
+
         self.scrollArea.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
 
         self.host = QWidget(self.scrollArea)
-        self.host.setStyleSheet(
-            f"background: {AppConfig.background_color(isDarkTheme())};"
-        )
         self.hostLayout = QVBoxLayout(self.host)
-        self.hostLayout.setContentsMargins(*AppConfig.get("ui", "margins", "page"))
-        self.hostLayout.setSpacing(AppConfig.get("ui", "spacing", "md"))
+        self.hostLayout.setContentsMargins(36, 28, 36, 28)
+        self.hostLayout.setSpacing(12)
         self.host.setLayout(self.hostLayout)
         self.scrollArea.setWidget(self.host)
 
         self.titleLabel = TitleLabel("Settings", self.host)
         self.hostLayout.addWidget(self.titleLabel)
-        self.hostLayout.addSpacing(AppConfig.settings_title_spacing())
+        self.hostLayout.addSpacing(6)
 
-        self.themeCard = OptionsSettingCard(
-            cfg.themeMode,
-            FIF.BRUSH,
-            "Theme",
-            "Switch between the dark Frappé and light Latte flavors.",
-            texts=[f.value.capitalize() for f in Flavor],
-            parent=self.host,
-        )
-        self.themeCard.optionChanged.connect(self._on_theme_changed)
-        self.hostLayout.addWidget(self.themeCard)
-
-        self.hostLayout.addSpacing(AppConfig.get("ui", "spacing", "xl"))
+        self.hostLayout.addSpacing(24)
         self._setup_shortcuts_section()
 
-        self.hostLayout.addSpacing(AppConfig.get("ui", "spacing", "xl"))
+        self.hostLayout.addSpacing(24)
         self._setup_library_section()
 
         self.hostLayout.addStretch(1)
@@ -104,11 +94,6 @@ class SettingsPage(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(self.scrollArea)
-
-    def _on_theme_changed(self, config_item) -> None:
-        flavor_value = cfg.get(config_item)
-        logger.info("Theme setting changed to {}", flavor_value)
-        signalBus.themeChanged.emit(flavor_value)
 
     def _setup_shortcuts_section(self) -> None:
         self._shortcutsCard = ExpandGroupSettingCard(
@@ -227,7 +212,3 @@ class SettingsPage(QWidget):
             self._pathCard.setContent(str(library_path()))
         except Exception as e:
             logger.error("Failed to load library from {}: {}", path, e)
-
-    def refresh_theme(self) -> None:
-        bg = AppConfig.background_color(isDarkTheme())
-        self.host.setStyleSheet(f"background: {bg};")

@@ -8,7 +8,6 @@ from qfluentwidgets import (
     ElevatedCardWidget,
     IconWidget,
     StrongBodyLabel,
-    isDarkTheme,
 )
 from qfluentwidgets import FluentIcon as FIF
 
@@ -20,16 +19,11 @@ class AboutPage(QWidget):
         super().__init__(parent)
         self.setObjectName("aboutInterface")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        c = _colors()
 
         self._icon = IconWidget(FIF.VIDEO, self)
-        s = AppConfig.about_icon_size()
-        self._icon.setFixedSize(s, s)
+        self._icon.setFixedSize(72, 72)
 
         self._app_name = StrongBodyLabel(AppConfig.app_name(), self)
-        self._app_name.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'title')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'extrabold')};color:{c['title']};"
-        )
         self._app_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._tagline = CaptionLabel(
@@ -38,31 +32,17 @@ class AboutPage(QWidget):
         )
         self._tagline.setWordWrap(True)
         self._tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._tagline.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'base')}px;color:{c['muted']};padding:{AppConfig.about_tagline_padding()};"
-        )
 
         self._version_pill = QLabel(f"v{AppConfig.app_version()}", self)
         self._version_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._version_pill.setStyleSheet(
-            f"background:{c['pill_bg']};color:{c['pill_text']};"
-            f"padding:{AppConfig.get('ui', 'padding', 'version_pill')};"
-            f"border-radius:{AppConfig.get('ui', 'radius', 'about_card')}px;"
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'xs')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'bold')};"
-        )
 
         self._info_card = ElevatedCardWidget(self)
-        self._info_card.setBorderRadius(AppConfig.about_card_radius())
+        self._info_card.setBorderRadius(12)
         info_layout = QVBoxLayout(self._info_card)
-        info_layout.setContentsMargins(
-            *AppConfig.get("ui", "margins", "about_card_inner")
-        )
-        info_layout.setSpacing(AppConfig.get("ui", "spacing", "md"))
+        info_layout.setContentsMargins(24, 20, 24, 20)
+        info_layout.setSpacing(12)
 
         about_title = StrongBodyLabel("About", self._info_card)
-        about_title.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'lg')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'bold')};color:{c['text']};"
-        )
         info_layout.addWidget(about_title, 0, Qt.AlignmentFlag.AlignLeft)
 
         about_body = BodyLabel(
@@ -71,20 +51,14 @@ class AboutPage(QWidget):
         )
         about_body.setWordWrap(True)
         about_body.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        about_body.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'md')}px;color:{c['muted']};"
-        )
         info_layout.addWidget(about_body)
-        info_layout.addSpacing(AppConfig.about_body_after_spacing())
+        info_layout.addSpacing(4)
 
         tech_title = StrongBodyLabel("Built with", self._info_card)
-        tech_title.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'lg')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'bold')};color:{c['text']};"
-        )
         info_layout.addWidget(tech_title, 0, Qt.AlignmentFlag.AlignLeft)
 
         tech_row = QHBoxLayout()
-        tech_row.setSpacing(AppConfig.get("ui", "spacing", "sm"))
+        tech_row.setSpacing(8)
         tech_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
         for icon, name in (
             (FIF.CODE, "Python"),
@@ -92,7 +66,7 @@ class AboutPage(QWidget):
             (FIF.BRUSH, "qfluentwidgets"),
             (FIF.CLOUD, "Jikan API"),
         ):
-            chip = _TechChip(icon, name, self._info_card, c)
+            chip = _TechChip(icon, name, self._info_card)
             tech_row.addWidget(chip)
         tech_row.addStretch(1)
         info_layout.addLayout(tech_row)
@@ -100,97 +74,42 @@ class AboutPage(QWidget):
         self._dev_label = BodyLabel(
             "Developed with \u2764 by mIcHyAmRaNe \u2764 T.B", self
         )
-        self._dev_label.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'sm')}px;color:{c['muted']};"
-        )
         self._dev_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self._powered_label = CaptionLabel(
             "Powered by the Jikan API (MyAnimeList)", self
         )
-        self._powered_label.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'sm')}px;color:{c['muted']};"
-        )
         self._powered_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout = QVBoxLayout()
-        layout.setSpacing(AppConfig.get("ui", "spacing", "sm"))
-        layout.setContentsMargins(*AppConfig.get("ui", "margins", "about_page"))
+        layout.setSpacing(8)
+        layout.setContentsMargins(64, 24, 64, 24)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addStretch(1)
         layout.addWidget(self._icon, 0, Qt.AlignmentFlag.AlignCenter)
-        layout.addSpacing(AppConfig.about_icon_spacing())
+        layout.addSpacing(8)
         layout.addWidget(self._app_name, 0, Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._version_pill, 0, Qt.AlignmentFlag.AlignCenter)
-        layout.addSpacing(AppConfig.about_version_spacing())
+        layout.addSpacing(4)
         layout.addWidget(self._tagline, 0, Qt.AlignmentFlag.AlignCenter)
-        layout.addSpacing(AppConfig.about_before_info_spacing())
-        self._info_card.setMinimumWidth(
-            AppConfig.get("ui", "sizes", "about_card_min_width")
-        )
+        layout.addSpacing(24)
+        self._info_card.setMinimumWidth(500)
         layout.addWidget(self._info_card, 0, Qt.AlignmentFlag.AlignHCenter)
         layout.addStretch(1)
         layout.addWidget(self._dev_label, 0, Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._powered_label, 0, Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout)
 
-    def refresh_theme(self) -> None:
-        c = _colors()
-        fs = AppConfig.get("ui", "font", "sizes")
-        fw = AppConfig.get("ui", "font", "weights")
-        self._app_name.setStyleSheet(
-            f"font-size:{fs['title']}px;font-weight:{fw['extrabold']};color:{c['title']};"
-        )
-        self._tagline.setStyleSheet(
-            f"font-size:{fs['base']}px;color:{c['muted']};padding:{AppConfig.about_tagline_padding()};"
-        )
-        self._version_pill.setStyleSheet(
-            f"background:{c['pill_bg']};color:{c['pill_text']};"
-            f"padding:{AppConfig.get('ui', 'padding', 'version_pill')};"
-            f"border-radius:{AppConfig.get('ui', 'radius', 'about_card')}px;"
-            f"font-size:{fs['xs']}px;font-weight:{fw['bold']};"
-        )
-        self._dev_label.setStyleSheet(f"font-size:{fs['sm']}px;color:{c['muted']};")
-        self._powered_label.setStyleSheet(f"font-size:{fs['sm']}px;color:{c['muted']};")
-        for chip in self._info_card.findChildren(_TechChip):
-            chip.refresh(c)
-
 
 class _TechChip(ElevatedCardWidget):
-    def __init__(self, icon, name: str, parent: QWidget, c: dict) -> None:
+    def __init__(self, icon, name: str, parent: QWidget) -> None:
         super().__init__(parent)
-        self.setBorderRadius(AppConfig.about_chip_radius())
-        self._c = c
-        self._name = name
+        self.setBorderRadius(8)
         icon_w = IconWidget(icon, self)
-        icon_w.setFixedSize(
-            AppConfig.about_chip_icon_size(), AppConfig.about_chip_icon_size()
-        )
+        icon_w.setFixedSize(16, 16)
         label = BodyLabel(name, self)
-        label.setStyleSheet(
-            f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'sm')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'semibold')};color:{c['text']};background:transparent;"
-        )
         row = QHBoxLayout(self)
-        row.setContentsMargins(*AppConfig.get("ui", "margins", "about_chip_row"))
-        row.setSpacing(AppConfig.get("ui", "spacing", "xs"))
+        row.setContentsMargins(10, 6, 12, 6)
+        row.setSpacing(4)
         row.addWidget(icon_w)
         row.addWidget(label)
-
-    def refresh(self, c: dict) -> None:
-        self._c = c
-        for child in self.findChildren(BodyLabel):
-            if child.text() == self._name:
-                child.setStyleSheet(
-                    f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'sm')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'semibold')};color:{self._c['text']};background:transparent;"
-                )
-
-
-def _colors() -> dict:
-    dark = isDarkTheme()
-    return {
-        "title": AppConfig.title_color(dark),
-        "text": AppConfig.text_color(dark),
-        "muted": AppConfig.muted_color(dark),
-        "pill_bg": AppConfig.pill_bg(dark),
-        "pill_text": AppConfig.pill_text(dark),
-    }

@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('config', 'config')]
+datas = []
 binaries = []
 hiddenimports = ['PyQt6.sip']
 tmp_ret = collect_all('qfluentwidgets')

@@ -11,8 +11,6 @@ from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import FluentTranslator
 
 from .config.app_config import AppConfig
-from .config.settings import current_flavor
-from .theme.theme import Flavor, init_theme
 from .ui.main_window import MainWindow
 
 
@@ -69,14 +67,6 @@ def main() -> int:
     app.setOrganizationName(AppConfig.app_name().lower())
     app.installTranslator(FluentTranslator())
     app.setFont(QFont(AppConfig.font_family(), AppConfig.font_size()))
-
-    try:
-        flavor = current_flavor()
-    except ValueError:
-        logger.warning("Invalid theme in config, falling back to FRAPPE")
-        flavor = Flavor.FRAPPE
-    init_theme(flavor)
-    logger.info("Initial theme: {}", flavor.value)
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 

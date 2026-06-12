@@ -16,8 +16,6 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import FluentTranslator
 
-from app.config.settings import cfg
-from app.theme.theme import Flavor, init_theme
 from app.ui.main_window import MainWindow
 
 
@@ -26,12 +24,6 @@ def main() -> int:
     app.setApplicationName("anitrack")
     app.setOrganizationName("anitrack")
     app.installTranslator(FluentTranslator())
-
-    try:
-        flavor = Flavor(cfg.get(cfg.themeMode))
-    except ValueError:
-        flavor = Flavor.MOCHA
-    init_theme(flavor)
 
     window = MainWindow()
     window.show()

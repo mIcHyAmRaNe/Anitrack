@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from loguru import logger
 from PyQt6.QtCore import QSettings, Qt
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
@@ -16,15 +14,12 @@ from qfluentwidgets import (
 
 from ..config.app_config import AppConfig
 from ..models.anime import Anime, AnimeStatus
-from ..theme.theme import Flavor, init_theme, window_stylesheet
 from .pages.about_page import AboutPage
 from .pages.detail_page import DetailPage
 from .pages.home_page import HomePage
 from .pages.list_page import ListPage
 from .pages.settings_page import SettingsPage
 from .signal_bus import signalBus
-
-STATUS_LABELS: dict[str, str] = {s.value: s.label for s in AnimeStatus}
 
 _SETTINGS_KEY = "MainWindow"
 
@@ -36,20 +31,28 @@ def _toast(parent, title: str, content: str, error: bool = False) -> None:
         orient=Qt.Orientation.Horizontal,
         isClosable=True,
         position=InfoBarPosition.TOP_RIGHT,
-        duration=AppConfig.toast_duration_ms(),
+        duration=2000,
         parent=parent,
     )
+
+
+def _status_label(value: str) -> str:
+    try:
+        return AnimeStatus(value).label
+    except ValueError:
+        return value
 
 
 class MainWindow(FluentWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(AppConfig.app_name())
+        from pathlib import Path
+
         asset = str(Path(__file__).parent.parent / "assets" / "anitrack.png")
         self.setWindowIcon(QIcon(asset))
         self._restore_window_state()
-        wm, hm = AppConfig.get("ui", "sizes", "window_min")
-        self.setMinimumSize(wm, hm)
+        self.setMinimumSize(960, 600)
 
         self.homeInterface = HomePage(self)
         self.watchingInterface = ListPage(AnimeStatus.WATCHING, self)
@@ -61,15 +64,12 @@ class MainWindow(FluentWindow):
         self.aboutInterface = AboutPage(self)
         self.initNavigation()
 
-        self.setStyleSheet(window_stylesheet())
-
         self.detailInterface = DetailPage(self)
         self.stackedWidget.addWidget(self.detailInterface)
         self._previous_widget = None
 
         self._setup_shortcuts()
 
-        signalBus.themeChanged.connect(self._apply_theme)
         signalBus.openAnimeDetail.connect(self._on_open_detail)
         signalBus.goBack.connect(self._on_go_back)
         signalBus.libraryAdded.connect(
@@ -80,7 +80,9 @@ class MainWindow(FluentWindow):
         )
         signalBus.libraryStatusChanged.connect(
             lambda a, s: _toast(
-                self, "Status updated", f"{a.title} \u2192 {STATUS_LABELS.get(s, s)}"
+                self,
+                "Status updated",
+                f"{a.title} \u2192 {_status_label(s)}",
             )
         )
         signalBus.libraryFavoriteToggled.connect(
@@ -93,8 +95,7 @@ class MainWindow(FluentWindow):
         if geom is not None:
             self.restoreGeometry(geom)
         else:
-            w, h = AppConfig.get("ui", "sizes", "window")
-            self.resize(w, h)
+            self.resize(1200, 760)
 
     def closeEvent(self, a0) -> None:
         s = QSettings(_SETTINGS_KEY)
@@ -186,30 +187,3 @@ class MainWindow(FluentWindow):
     def _on_go_back(self) -> None:
         if self._previous_widget is not None:
             self.stackedWidget.setCurrentWidget(self._previous_widget)
-
-    def _apply_theme(self, flavor_value: str) -> None:
-        try:
-            flavor = Flavor(flavor_value)
-        except ValueError:
-            logger.warning("Invalid flavor '%s', falling back to FRAPPE", flavor_value)
-            flavor = Flavor.FRAPPE
-        init_theme(flavor)
-        self.setStyleSheet(window_stylesheet())
-        logger.info("Theme changed to {}", flavor.value)
-
-        from .widgets.anime_card import AnimeCard
-        from .widgets.suggestion_card import SuggestionCard
-
-        for card in self.findChildren(AnimeCard):
-            card.refresh_theme()
-        for card in self.findChildren(SuggestionCard):
-            card.refresh_theme()
-        self.homeInterface.refresh_theme()
-        self.detailInterface.refresh_theme()
-        self.settingsInterface.refresh_theme()
-
-        from .pages.list_page import ListPage
-
-        for page in self.findChildren(ListPage):
-            page.refresh_theme()
-        self.aboutInterface.refresh_theme()

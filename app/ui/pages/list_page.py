@@ -1,3 +1,5 @@
+"""Library list pages — one per AnimeStatus filter."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import QEvent, Qt, QUrl
@@ -23,34 +25,40 @@ from qfluentwidgets import (
     TitleLabel,
     ToolTipFilter,
     TransparentToolButton,
-    isDarkTheme,
-    themeColor,
 )
 from qfluentwidgets import FluentIcon as FIF
 
-from ...config.app_config import AppConfig
 from ...models.anime import Anime, AnimeStatus
 from ...models.library import get_library
 from ...services.image_cache import image_loader
-from ...theme import text_color
 from ..signal_bus import signalBus
 
+_SELECTED = "\u2611"  # ☑
+_UNSELECTED = "\u2610"  # ☐
+_EMPTY_FILTERS: dict[AnimeStatus, str] = {
+    AnimeStatus.WATCHING: "You're not watching anything yet.",
+    AnimeStatus.COMPLETED: "No completed anime yet.",
+    AnimeStatus.ON_HOLD: "Nothing on hold.",
+    AnimeStatus.PLAN: "No anime in your plan.",
+    AnimeStatus.DROPPED: "No dropped anime.",
+}
 
-def pill(label: StrongBodyLabel) -> None:
-    label.setStyleSheet(
-        f"StrongBodyLabel{{background:{themeColor().name()}22;color:{text_color()};"
-        f"padding:{AppConfig.get('ui', 'padding', 'pill')};border-radius:{AppConfig.get('ui', 'radius', 'pill')}px;"
-        f"font-size:{AppConfig.get('ui', 'font', 'sizes', 'xs')}px;font-weight:{AppConfig.get('ui', 'font', 'weights', 'semibold')};}}"
-    )
+
+def _centered_widget(child: QWidget, margins=(8, 0, 8, 0)) -> QWidget:
+    """Wrap ``child`` in a QWidget whose layout centres it horizontally."""
+    holder = QWidget()
+    layout = QHBoxLayout(holder)
+    layout.setContentsMargins(*margins)
+    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(child)
+    return holder
 
 
 class _ThumbLabel(QLabel):
     def __init__(self, url: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._url = url
-        self.setFixedSize(AppConfig.thumb_w(), AppConfig.thumb_h())
-        r = AppConfig.get("ui", "radius", "thumbnail")
-        self.setStyleSheet(f"border-radius: {r}px; background: transparent;")
+        self.setFixedSize(50, 70)
         self.setScaledContents(False)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if url:
@@ -58,12 +66,13 @@ class _ThumbLabel(QLabel):
 
     def _on_image(self, url: str, pix) -> None:
         if url == self._url:
-            scaled_pix = pix.scaled(
-                self.size(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
+            self.setPixmap(
+                pix.scaled(
+                    self.size(),
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
             )
-            self.setPixmap(scaled_pix)
 
 
 class ListPage(QWidget):
@@ -76,6 +85,7 @@ class ListPage(QWidget):
         self._table_items: list[Anime] = []
         self._selection_mode = False
         self._selected_ids: set[int] = set()
+        self._filter_visible = True
         self.setObjectName(f"listInterface_{status.value}")
 
         headerRow = QHBoxLayout()
@@ -87,24 +97,20 @@ class ListPage(QWidget):
 
         self.searchEdit = SearchLineEdit(self)
         self.searchEdit.setPlaceholderText("Search in library...")
-        self.searchEdit.setFixedWidth(AppConfig.get("ui", "sizes", "search_edit_list"))
+        self.searchEdit.setFixedWidth(260)
         self.searchEdit.setClearButtonEnabled(True)
         self.searchEdit.textChanged.connect(self._apply_filters)
 
         self.typeCombo = ComboBox(self)
         self.typeCombo.setPlaceholderText("Type")
         self.typeCombo.addItem("All Types", userData="")
-        self.typeCombo.setMinimumWidth(
-            AppConfig.get("ui", "sizes", "combo_min_width_narrow")
-        )
+        self.typeCombo.setMinimumWidth(110)
         self.typeCombo.currentIndexChanged.connect(self._apply_filters)
 
         self.genreCombo = ComboBox(self)
         self.genreCombo.setPlaceholderText("Genre")
         self.genreCombo.addItem("All Genres", userData="")
-        self.genreCombo.setMinimumWidth(
-            AppConfig.get("ui", "sizes", "combo_min_width_wide")
-        )
+        self.genreCombo.setMinimumWidth(120)
         self.genreCombo.currentIndexChanged.connect(self._apply_filters)
 
         self.statusFilterCombo = ComboBox(self)
@@ -112,9 +118,7 @@ class ListPage(QWidget):
         self.statusFilterCombo.addItem("Any Status", userData="")
         for s in ["Airing", "Finished Airing", "Currently Airing", "Not yet aired"]:
             self.statusFilterCombo.addItem(s, userData=s)
-        self.statusFilterCombo.setMinimumWidth(
-            AppConfig.get("ui", "sizes", "combo_min_width_wide")
-        )
+        self.statusFilterCombo.setMinimumWidth(120)
         self.statusFilterCombo.currentIndexChanged.connect(self._apply_filters)
 
         self.scoreCombo = ComboBox(self)
@@ -122,36 +126,30 @@ class ListPage(QWidget):
         self.scoreCombo.addItem("Any Score", userData="")
         for s in [9, 8, 7, 6, 5]:
             self.scoreCombo.addItem(f"{s}+", userData=str(s))
-        self.scoreCombo.setMinimumWidth(
-            AppConfig.get("ui", "sizes", "combo_min_width_narrow")
-        )
+        self.scoreCombo.setMinimumWidth(110)
         self.scoreCombo.currentIndexChanged.connect(self._apply_filters)
 
         self.resetBtn = TransparentToolButton(FIF.CANCEL, self)
         self.resetBtn.setToolTip("Reset filters")
-        self.resetBtn.installEventFilter(
-            ToolTipFilter(self.resetBtn, AppConfig.tooltip_filter_ms())
-        )
+        self.resetBtn.installEventFilter(ToolTipFilter(self.resetBtn, 300))
         self.resetBtn.clicked.connect(self._reset_filters)
 
         self.toggleFilterBtn = TransparentToolButton(FIF.FILTER, self)
         self.toggleFilterBtn.setToolTip("Toggle filters")
         self.toggleFilterBtn.installEventFilter(
-            ToolTipFilter(self.toggleFilterBtn, AppConfig.tooltip_filter_ms())
+            ToolTipFilter(self.toggleFilterBtn, 300)
         )
         self.toggleFilterBtn.clicked.connect(self._toggle_filters)
 
         self.selectBtn = TransparentToolButton(FIF.CHECKBOX, self)
         self.selectBtn.setToolTip("Select anime")
-        self.selectBtn.installEventFilter(
-            ToolTipFilter(self.selectBtn, AppConfig.tooltip_filter_ms())
-        )
+        self.selectBtn.installEventFilter(ToolTipFilter(self.selectBtn, 300))
         self.selectBtn.clicked.connect(self._toggle_selection_mode)
 
         filterRow = QHBoxLayout()
-        filterRow.setSpacing(AppConfig.get("ui", "spacing", "sm"))
+        filterRow.setSpacing(8)
         filterRow.addWidget(self.searchEdit)
-        filterRow.addSpacing(AppConfig.list_filter_row_spacing())
+        filterRow.addSpacing(4)
         filterRow.addWidget(self.typeCombo)
         filterRow.addWidget(self.genreCombo)
         filterRow.addWidget(self.statusFilterCombo)
@@ -165,16 +163,16 @@ class ListPage(QWidget):
         self.selectionToolbar.setVisible(False)
         st_layout = QHBoxLayout(self.selectionToolbar)
         st_layout.setContentsMargins(0, 0, 0, 0)
-        st_layout.setSpacing(AppConfig.get("ui", "spacing", "sm"))
+        st_layout.setSpacing(8)
 
         self.cancelSelectBtn = TransparentToolButton(FIF.CANCEL, self.selectionToolbar)
         self.cancelSelectBtn.setToolTip("Exit selection mode")
         self.cancelSelectBtn.installEventFilter(
-            ToolTipFilter(self.cancelSelectBtn, AppConfig.tooltip_filter_ms())
+            ToolTipFilter(self.cancelSelectBtn, 300)
         )
         self.cancelSelectBtn.clicked.connect(self._toggle_selection_mode)
         st_layout.addWidget(self.cancelSelectBtn)
-        st_layout.addSpacing(AppConfig.list_selection_toolbar_spacing())
+        st_layout.addSpacing(8)
 
         self.selectAllBtn = QPushButton("Select All", self.selectionToolbar)
         self.selectAllBtn.setSizePolicy(
@@ -196,21 +194,20 @@ class ListPage(QWidget):
         self.deleteSelectedBtn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
-        self.deleteSelectedBtn.setStyleSheet(f"color: {AppConfig.danger_color()};")
         self.deleteSelectedBtn.clicked.connect(self._delete_selected)
         st_layout.addWidget(self.deleteSelectedBtn)
 
         self.table = TableWidget(self)
         self.table.setBorderVisible(True)
-        self.table.setBorderRadius(AppConfig.get("ui", "radius", "table"))
+        self.table.setBorderRadius(8)
         self.table.setWordWrap(False)
         self.table.setRowCount(0)
         self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(
             ["", "Title", "Type", "Score", "Airing", "Progress", "", ""]
         )
-        cw = AppConfig.table_column_widths()
-        title_col_w = AppConfig.thumb_w() + AppConfig.table_title_col_extra()
+        cw = [32, 0, 260, 80, 70, 120, 100, 50]
+        title_col_w = 50 + 20
         self.table.setColumnWidth(0, cw[0])
         self.table.setColumnWidth(1, title_col_w)
         self.table.setColumnWidth(2, cw[2])
@@ -228,7 +225,6 @@ class ListPage(QWidget):
             hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
             hdr.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
             hdr.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-            cw = AppConfig.table_column_widths()
             for col, width in [
                 (3, cw[3]),
                 (4, cw[4]),
@@ -249,8 +245,8 @@ class ListPage(QWidget):
         self.emptyLabel.hide()
 
         v = QVBoxLayout(self)
-        v.setContentsMargins(*AppConfig.get("ui", "margins", "page"))
-        v.setSpacing(AppConfig.get("ui", "spacing", "md"))
+        v.setContentsMargins(36, 28, 36, 28)
+        v.setSpacing(12)
         v.addLayout(headerRow)
         v.addLayout(filterRow)
         v.addWidget(self.selectionToolbar)
@@ -262,9 +258,6 @@ class ListPage(QWidget):
     def showEvent(self, a0) -> None:
         super().showEvent(a0)
         self.refresh()
-
-    def refresh_theme(self) -> None:
-        self._populate_table(self._table_items)
 
     def refresh(self) -> None:
         self._selected_ids.clear()
@@ -334,18 +327,9 @@ class ListPage(QWidget):
         n = len(items)
         self.countLabel.setText(f"{n} anime{'s' if n != 1 else ''}")
         if n == 0:
-            if query:
-                self.emptyLabel.setText("No matches found.")
-            else:
-                self.emptyLabel.setText(
-                    {
-                        AnimeStatus.WATCHING: "You're not watching anything yet.",
-                        AnimeStatus.COMPLETED: "No completed anime yet.",
-                        AnimeStatus.ON_HOLD: "Nothing on hold.",
-                        AnimeStatus.PLAN: "No anime in your plan.",
-                        AnimeStatus.DROPPED: "No dropped anime.",
-                    }[self._status]
-                )
+            self.emptyLabel.setText(
+                "No matches found." if query else _EMPTY_FILTERS[self._status]
+            )
             self.emptyLabel.resize(self.table.size())
             self.emptyLabel.show()
         else:
@@ -359,7 +343,6 @@ class ListPage(QWidget):
         self.scoreCombo.setCurrentIndex(0)
 
     def _toggle_filters(self) -> None:
-        self._filter_visible = getattr(self, "_filter_visible", True)
         self._filter_visible = not self._filter_visible
         for w in (
             self.typeCombo,
@@ -380,7 +363,7 @@ class ListPage(QWidget):
         self._selection_mode = True
         self.selectBtn.setIcon(FIF.CANCEL.icon())
         self.selectionToolbar.setVisible(True)
-        self.table.setColumnWidth(0, AppConfig.table_column_widths()[0])
+        self.table.setColumnWidth(0, 32)
         self._update_delete_button()
         self._populate_table(self._table_items)
 
@@ -430,140 +413,73 @@ class ListPage(QWidget):
         if a0 is self.table and a1 is not None and a1.type() == QEvent.Type.Resize:
             if self.emptyLabel.isVisible():
                 hdr = self.table.horizontalHeader()
-                body_top = (
-                    hdr.height()
-                    if hdr is not None and hdr.isVisible()
-                    else AppConfig.table_header_fallback_height()
-                )
+                body_top = hdr.height() if hdr is not None and hdr.isVisible() else 30
                 self.emptyLabel.setGeometry(
                     0, body_top, self.table.width(), self.table.height() - body_top
                 )
         return super().eventFilter(a0, a1)
 
     def _populate_table(self, items: list[Anime]) -> None:
-        self.table.setRowCount(0)
         self.table.setRowCount(len(items))
-        dark = isDarkTheme()
-        tc = AppConfig.text_color(dark)
-        fs = AppConfig.get("ui", "font", "sizes")
-        sel_color = AppConfig.selection_color()
 
         for row, anime in enumerate(items):
             is_selected = anime.mal_id in self._selected_ids
-            row_bg = f"background: {sel_color}44;" if is_selected else ""
 
-            cb_widget = QWidget()
-            cb_layout = QHBoxLayout(cb_widget)
-            cb_layout.setContentsMargins(0, 0, 0, 0)
-            cb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            cb_label = QLabel("\u2611" if is_selected else "\u2610")
-            if is_selected:
-                cb_label.setStyleSheet(f"color: {sel_color};")
-            cb_layout.addWidget(cb_label)
-            self.table.setCellWidget(row, 0, cb_widget)
+            cb_label = QLabel(_SELECTED if is_selected else _UNSELECTED)
+            self.table.setCellWidget(
+                row, 0, _centered_widget(cb_label, margins=(0, 0, 0, 0))
+            )
 
             thumb_host = QWidget()
-            thumb_host.setStyleSheet(row_bg)
             thumb_layout = QHBoxLayout(thumb_host)
-            thumb_layout.setContentsMargins(
-                *AppConfig.get("ui", "margins", "list_thumbnail")
-            )
+            thumb_layout.setContentsMargins(6, 4, 6, 4)
             thumb_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             thumb_layout.addWidget(_ThumbLabel(anime.image_url))
             self.table.setCellWidget(row, 1, thumb_host)
-            self.table.setRowHeight(row, AppConfig.table_row_height())
+            self.table.setRowHeight(row, 82)
 
             title_widget = QWidget()
-            title_widget.setStyleSheet(row_bg)
             title_layout = QVBoxLayout(title_widget)
-            title_layout.setContentsMargins(
-                *AppConfig.get("ui", "margins", "list_title")
-            )
-            title_layout.setSpacing(AppConfig.list_title_spacing())
+            title_layout.setContentsMargins(12, 6, 12, 6)
+            title_layout.setSpacing(2)
 
             title_label = StrongBodyLabel(anime.title or "Unknown")
-            title_label.setStyleSheet(f"font-size:{fs['md']}px;color:{tc};")
             title_label.setWordWrap(False)
             title_layout.addWidget(title_label)
 
             if anime.favorite:
                 fav_label = StrongBodyLabel("\u2665 Favorite")
-                fav_label.setStyleSheet(f"font-size:{fs['xs']}px;color:{tc};")
                 title_layout.addWidget(fav_label)
 
             self.table.setCellWidget(row, 2, title_widget)
 
             type_label = StrongBodyLabel(anime.anime_type or "\u2014")
-            pill(type_label)
-            type_widget = QWidget()
-            type_widget.setStyleSheet(row_bg)
-            type_layout = QHBoxLayout(type_widget)
-            type_layout.setContentsMargins(*AppConfig.get("ui", "margins", "list_cell"))
-            type_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            type_layout.addWidget(type_label)
-            self.table.setCellWidget(row, 3, type_widget)
+            self.table.setCellWidget(row, 3, _centered_widget(type_label))
 
-            score_widget = QWidget()
-            score_widget.setStyleSheet(row_bg)
-            score_layout = QHBoxLayout(score_widget)
-            score_layout.setContentsMargins(
-                *AppConfig.get("ui", "margins", "list_cell")
-            )
-            score_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             score_label = StrongBodyLabel(
                 f"\u2605 {anime.score:.2f}" if anime.score else "\u2014"
             )
-            score_label.setStyleSheet(f"font-size:{fs['sm']}px;color:{tc};")
-            score_layout.addWidget(score_label)
-            self.table.setCellWidget(row, 4, score_widget)
+            self.table.setCellWidget(row, 4, _centered_widget(score_label))
 
             airing_label = StrongBodyLabel(anime.status or "\u2014")
-            pill(airing_label)
-            status_widget = QWidget()
-            status_widget.setStyleSheet(row_bg)
-            status_layout = QHBoxLayout(status_widget)
-            status_layout.setContentsMargins(
-                *AppConfig.get("ui", "margins", "list_cell")
-            )
-            status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            status_layout.addWidget(airing_label)
-            self.table.setCellWidget(row, 5, status_widget)
+            self.table.setCellWidget(row, 5, _centered_widget(airing_label))
 
             prog_text = f"{anime.progress}"
             if anime.episodes:
                 prog_text += f" / {anime.episodes}"
-            prog_label = StrongBodyLabel(prog_text)
-            prog_label.setStyleSheet(f"font-size:{fs['sm']}px;color:{tc};")
-            progress_widget = QWidget()
-            progress_widget.setStyleSheet(row_bg)
-            progress_layout = QHBoxLayout(progress_widget)
-            progress_layout.setContentsMargins(
-                *AppConfig.get("ui", "margins", "list_cell")
-            )
-            progress_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            progress_layout.addWidget(prog_label)
-            self.table.setCellWidget(row, 6, progress_widget)
+            progress_label = StrongBodyLabel(prog_text)
+            self.table.setCellWidget(row, 6, _centered_widget(progress_label))
 
             menu_btn = TransparentToolButton(FIF.MORE, self)
-            menu_btn.setFixedSize(
-                AppConfig.get("ui", "sizes", "menu_button"),
-                AppConfig.get("ui", "sizes", "menu_button"),
-            )
+            menu_btn.setFixedSize(32, 32)
             menu_btn.clicked.connect(
                 lambda *_, a=anime, b=menu_btn: self._show_row_menu(a, b)
             )
-            menu_widget = QWidget()
-            menu_widget.setStyleSheet(row_bg)
-            menu_layout = QHBoxLayout(menu_widget)
-            menu_layout.setContentsMargins(0, 0, 0, 0)
-            menu_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            menu_layout.addWidget(menu_btn)
-            self.table.setCellWidget(row, 7, menu_widget)
+            self.table.setCellWidget(
+                row, 7, _centered_widget(menu_btn, margins=(0, 0, 0, 0))
+            )
 
-        if self._selection_mode:
-            self.table.setColumnHidden(0, False)
-        else:
-            self.table.setColumnHidden(0, True)
+        self.table.setColumnHidden(0, not self._selection_mode)
 
     def _on_cell_clicked(self, row: int, col: int) -> None:
         if not (0 <= row < len(self._table_items)):
@@ -633,11 +549,10 @@ class ListPage(QWidget):
     def _change_status(self, anime: Anime, new_status: AnimeStatus) -> None:
         lib = get_library()
         existing = lib.get(anime.mal_id)
+        lib.add(anime, new_status)
         if existing:
-            lib.add(anime, new_status)
             signalBus.libraryStatusChanged.emit(anime, new_status.value)
         else:
-            lib.add(anime, new_status)
             signalBus.libraryAdded.emit(anime)
         signalBus.libraryChanged.emit()
 

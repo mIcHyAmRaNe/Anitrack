@@ -1,3 +1,9 @@
+"""Persistent anime library: load, mutate, and save the user's tracked anime.
+
+The library is stored as a JSON file at a platform-specific path
+(`AppConfig.data_dir() / "library.json"`) with atomic writes.
+"""
+
 from __future__ import annotations
 
 import json
@@ -8,21 +14,12 @@ from pathlib import Path
 
 from loguru import logger
 
+from ..config.app_config import AppConfig
 from .anime import Anime, AnimeStatus
 
 
-def _data_dir() -> Path:
-    if os.name == "nt":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    else:
-        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    path = base / "anitrack"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
 def _library_path() -> Path:
-    return _data_dir() / "library.json"
+    return AppConfig.data_dir() / "library.json"
 
 
 def library_path() -> Path:
@@ -40,6 +37,15 @@ def _parse_iso_timestamp(iso: str) -> float:
         return datetime.fromisoformat(iso).timestamp()
     except (ValueError, TypeError):
         return 0.0
+
+
+def _coerce_int(mal_id: object) -> int:
+    """Validate that an object is an int-coercible positive integer."""
+    if isinstance(mal_id, bool) or not isinstance(mal_id, int):
+        raise TypeError(f"mal_id must be an int, got {type(mal_id).__name__}")
+    if mal_id <= 0:
+        raise ValueError(f"mal_id must be positive, got {mal_id}")
+    return mal_id
 
 
 class Library:
@@ -88,12 +94,10 @@ class Library:
         logger.debug("Saved library ({} items) to {}", len(self._items), path)
 
     def all(self) -> list[Anime]:
-        return self._sort(list(self._items.values()))
+        return self._sort(self._items.values())
 
     def get(self, mal_id: int) -> Anime | None:
-        if not isinstance(mal_id, int) or isinstance(mal_id, bool):
-            raise TypeError(f"mal_id must be an int, got {type(mal_id).__name__}")
-        return self._items.get(mal_id)
+        return self._items.get(_coerce_int(mal_id))
 
     def in_status(self, status: AnimeStatus) -> list[Anime]:
         if not isinstance(status, AnimeStatus):
@@ -104,7 +108,7 @@ class Library:
         return self._sort(items)
 
     def favorites(self) -> list[Anime]:
-        return self._sort([a for a in self._items.values() if a.favorite])
+        return self._sort(a for a in self._items.values() if a.favorite)
 
     def count(self) -> int:
         return len(self._items)
@@ -128,10 +132,21 @@ class Library:
         return len(loaded)
 
     @staticmethod
-    def _sort(items: list[Anime]) -> list[Anime]:
+    def _sort(items) -> list[Anime]:
         return sorted(
             items, key=lambda a: (not a.favorite, -_parse_iso_timestamp(a.added_at))
         )
+
+    def _touch(self, mal_id: int, fields: dict[str, object]) -> Anime | None:
+        """Update named fields on a stored anime and persist."""
+        anime = self._items.get(_coerce_int(mal_id))
+        if anime is None:
+            return None
+        for field_name, value in fields.items():
+            setattr(anime, field_name, value)
+        anime.updated_at = _now_iso()
+        self.save()
+        return anime
 
     def add(
         self, anime: Anime, status: AnimeStatus, *, favorite: bool = False
@@ -146,10 +161,11 @@ class Library:
             )
         existing = self._items.get(anime.mal_id)
         if existing is None:
-            anime.added_at = _now_iso()
+            now = _now_iso()
+            anime.added_at = now
+            anime.updated_at = now
             anime.tracking_status = status.value
             anime.favorite = favorite
-            anime.updated_at = anime.added_at
             self._items[anime.mal_id] = anime
             logger.info(
                 "Added '{}' (mal_id={}) as {}", anime.title, anime.mal_id, status.value
@@ -169,38 +185,34 @@ class Library:
         return anime
 
     def remove(self, mal_id: int) -> bool:
-        if not isinstance(mal_id, int) or isinstance(mal_id, bool):
-            raise TypeError(f"mal_id must be an int, got {type(mal_id).__name__}")
-        if mal_id in self._items:
-            title = self._items[mal_id].title
-            del self._items[mal_id]
-            self.save()
-            logger.info("Removed '{}' (mal_id={})", title, mal_id)
-            return True
-        logger.debug("remove() called for mal_id={} not in library", mal_id)
-        return False
+        mal_id = _coerce_int(mal_id)
+        if mal_id not in self._items:
+            logger.debug("remove() called for mal_id={} not in library", mal_id)
+            return False
+        title = self._items[mal_id].title
+        del self._items[mal_id]
+        self.save()
+        logger.info("Removed '{}' (mal_id={})", title, mal_id)
+        return True
 
     def set_status(self, mal_id: int, status: AnimeStatus) -> None:
-        if not isinstance(mal_id, int) or isinstance(mal_id, bool):
-            raise TypeError(f"mal_id must be an int, got {type(mal_id).__name__}")
         if not isinstance(status, AnimeStatus):
             raise TypeError(
                 f"status must be an AnimeStatus, got {type(status).__name__}"
             )
-        anime = self._items.get(mal_id)
+        anime = self._touch(mal_id, {"tracking_status": status.value})
         if anime is None:
             logger.debug("set_status() called for mal_id={} not in library", mal_id)
             return
-        anime.tracking_status = status.value
-        anime.updated_at = _now_iso()
-        self.save()
         logger.info(
-            "Set '{}' (mal_id={}) status to {}", anime.title, mal_id, status.value
+            "Set '{}' (mal_id={}) status to {}",
+            anime.title,
+            mal_id,
+            status.value,
         )
 
     def toggle_favorite(self, mal_id: int) -> bool:
-        if not isinstance(mal_id, int) or isinstance(mal_id, bool):
-            raise TypeError(f"mal_id must be an int, got {type(mal_id).__name__}")
+        mal_id = _coerce_int(mal_id)
         anime = self._items.get(mal_id)
         if anime is None:
             logger.debug(
@@ -219,17 +231,12 @@ class Library:
         return anime.favorite
 
     def set_favorite(self, mal_id: int, value: bool) -> None:
-        if not isinstance(mal_id, int) or isinstance(mal_id, bool):
-            raise TypeError(f"mal_id must be an int, got {type(mal_id).__name__}")
         if not isinstance(value, bool):
             raise TypeError(f"value must be a bool, got {type(value).__name__}")
-        anime = self._items.get(mal_id)
+        anime = self._touch(mal_id, {"favorite": value})
         if anime is None:
             logger.debug("set_favorite() called for mal_id={} not in library", mal_id)
             return
-        anime.favorite = value
-        anime.updated_at = _now_iso()
-        self.save()
         logger.info(
             "Set favorite for '{}' (mal_id={}) to {}", anime.title, mal_id, value
         )

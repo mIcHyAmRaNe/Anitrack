@@ -1,3 +1,5 @@
+"""Sync HTTP client for the Jikan v4 API with disk caching and rate limiting."""
+
 from __future__ import annotations
 
 import json
@@ -9,16 +11,12 @@ import diskcache as dc
 import httpx
 from loguru import logger
 
-from app.config.app_config import AppConfig
+from ..config.app_config import AppConfig
+from ..models.anime import validate_mal_id
 
 
 class JikanError(RuntimeError):
     """Raised when the Jikan API returns an error or all retries are exhausted."""
-
-
-def _validate_mal_id(mal_id: int) -> None:
-    if not isinstance(mal_id, int) or mal_id <= 0:
-        raise ValueError(f"mal_id must be a positive integer, got {mal_id!r}")
 
 
 def _validate_query(query: str) -> None:
@@ -75,9 +73,9 @@ class JikanClient:
             self._last_request = time.monotonic()
 
     def _cache_key(self, path: str, params: dict[str, Any] | None) -> str:
-        if params:
-            return "\x00".join((path, json.dumps(params, sort_keys=True)))
-        return path
+        if not params:
+            return path
+        return "\x00".join((path, json.dumps(params, sort_keys=True)))
 
     def _check_offline(self) -> None:
         now = time.monotonic()
@@ -99,6 +97,13 @@ class JikanClient:
         if self._offline:
             raise JikanError("No internet connection")
         logger.debug("API GET {}", url)
+        data = self._request_with_retries(url, params)
+        if cache_ttl > 0:
+            self._cache.set(self._cache_key(path, params), data, expire=cache_ttl)
+        return data
+
+    def _request_with_retries(self, url: str, params: dict[str, Any] | None) -> Any:
+        """Execute a single request with retry/backoff. Raise ``JikanError`` on failure."""
         last_error: Exception | None = None
         for attempt in range(self._max_retries):
             self._throttle()
@@ -138,11 +143,8 @@ class JikanClient:
                 time.sleep(delay)
                 continue
             if resp.status_code >= 400:
-                raise JikanError(f"Client error {resp.status_code}: {path}")
-            data = resp.json()
-            if cache_ttl > 0:
-                self._cache.set(key, data, expire=cache_ttl)
-            return data
+                raise JikanError(f"Client error {resp.status_code}: {url}")
+            return resp.json()
         raise JikanError(
             str(last_error) if last_error else "Request failed after all retries"
         )
@@ -169,33 +171,34 @@ class JikanClient:
         return self._get("/anime", params, cache_ttl=300)
 
     def get_anime_full(self, mal_id: int) -> dict[str, Any]:
-        _validate_mal_id(mal_id)
+        validate_mal_id(mal_id)
         return self._get(f"/anime/{mal_id}/full", cache_ttl=3600)
 
     def get_recommendations(self, mal_id: int) -> list[dict[str, Any]]:
-        _validate_mal_id(mal_id)
-        data = self._get(f"/anime/{mal_id}/recommendations", cache_ttl=3600)
-        return data.get("data") or []
+        validate_mal_id(mal_id)
+        return self._data(f"/anime/{mal_id}/recommendations", cache_ttl=3600) or []
 
     def get_anime_characters(self, mal_id: int) -> list[dict[str, Any]]:
-        _validate_mal_id(mal_id)
-        data = self._get(f"/anime/{mal_id}/characters", cache_ttl=3600)
-        return data.get("data") or []
+        validate_mal_id(mal_id)
+        return self._data(f"/anime/{mal_id}/characters", cache_ttl=3600) or []
 
     def get_anime_relations(self, mal_id: int) -> list[dict[str, Any]]:
-        _validate_mal_id(mal_id)
-        data = self._get(f"/anime/{mal_id}/relations", cache_ttl=3600)
-        return data.get("data") or []
+        validate_mal_id(mal_id)
+        return self._data(f"/anime/{mal_id}/relations", cache_ttl=3600) or []
 
     def get_anime_videos(self, mal_id: int) -> dict[str, Any]:
-        _validate_mal_id(mal_id)
-        data = self._get(f"/anime/{mal_id}/videos", cache_ttl=1800)
-        return data.get("data") or {}
+        validate_mal_id(mal_id)
+        return self._data(f"/anime/{mal_id}/videos", cache_ttl=1800) or {}
 
     def get_top_anime(self, limit: int = 12) -> list[dict[str, Any]]:
         _validate_limit(limit)
-        data = self._get("/top/anime", {"limit": limit}, cache_ttl=3600)
-        return data.get("data") or []
+        return self._data("/top/anime", {"limit": limit}, cache_ttl=3600) or []
+
+    def _data(
+        self, path: str, params: dict[str, Any] | None = None, *, cache_ttl: float = 0
+    ) -> Any:
+        """Return ``.get("data")`` (or an empty container) from a Jikan response."""
+        return self._get(path, params, cache_ttl=cache_ttl).get("data")
 
 
 _client: JikanClient | None = None
